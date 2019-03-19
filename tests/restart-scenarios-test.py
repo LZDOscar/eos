@@ -52,6 +52,7 @@ walletMgr=WalletMgr(True)
 
 try:
     TestHelper.printSystemInfo("BEGIN")
+    cluster.setWalletMgr(walletMgr)
 
     cluster.setChainStrategy(chainSyncStrategyStr)
     cluster.setWalletMgr(walletMgr)
@@ -74,11 +75,6 @@ try:
         errorExit("Cluster never stabilized")
 
     Print("Stand up EOS wallet keosd")
-    walletMgr.killall(allInstances=killAll)
-    walletMgr.cleanup()
-    if walletMgr.launch() is False:
-        errorExit("Failed to stand up keosd.")
-
     accountsCount=total_nodes
     walletName="MyWallet"
     Print("Creating wallet %s if one doesn't already exist." % walletName)
@@ -117,7 +113,7 @@ try:
         errorExit("Cluster sync wait failed.")
 
     Print ("Relaunch dead cluster nodes instances.")
-    if cluster.relaunchEosInstances() is False:
+    if cluster.relaunchEosInstances(cachePopen=True) is False:
         errorExit("Failed to relaunch Eos instances")
     Print("nodeos instances relaunched.")
 
@@ -134,8 +130,16 @@ try:
     if not cluster.waitOnClusterSync():
         errorExit("Cluster sync wait failed.")
 
+    if killEosInstances:
+        atLeastOne=False
+        for node in cluster.getNodes():
+            if node.popenProc is not None:
+                atLeastOne=True
+                node.interruptAndVerifyExitStatus()
+        assert atLeastOne, "Test is setup to verify that a cleanly interrupted nodeos exits with an exit status of 0, but this test may no longer be setup to do that"
+
     testSuccessful=True
 finally:
-    TestHelper.shutdown(cluster, walletMgr, testSuccessful, killEosInstances, killEosInstances, keepLogs, killAll, dumpErrorDetails)
+    TestHelper.shutdown(cluster, walletMgr, testSuccessful=testSuccessful, killEosInstances=killEosInstances, killWallet=killEosInstances, keepLogs=keepLogs, cleanRun=killAll, dumpErrorDetails=dumpErrorDetails)
 
 exit(0)
